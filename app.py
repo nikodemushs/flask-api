@@ -1,63 +1,57 @@
+# app.py  ← only the parts that changed / were added
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import pickle
+import pickle, os
 
 app = Flask(__name__)
 CORS(app)
 
-with open('80-20/best_nb_tfidf_model_80_20.pkl', 'rb') as f:
-    best_nb_cv_model = pickle.load(f)
+label_mapping = {0: "Normal", 1: "Fraud / Penipuan", 2: "Promo"}
 
-model = best_nb_cv_model['model']
-vectorizer = best_nb_cv_model['vectorizer']
+DEFAULT_MODEL = "80-20/best_nb_tfidf_model_80_20.pkl"   # fallback
 
-label_mapping = {
-    0: "Normal",
-    1: "Fraud / Penipuan",
-    2: "Promo"
-}
+_CACHE = {}
 
-@app.route('/')
-def hello_world():
-    return 'Hello World'
+def load_bundle(path):
+    if path not in _CACHE:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Model file '{path}' not found")
+        with open(path, "rb") as f:
+            _CACHE[path] = pickle.load(f)
+    return _CACHE[path]
 
-@app.route('/predict', methods=['POST'])
+
+@app.route("/predict", methods=["POST"])
 def predict():
     try:
-        # Get JSON data from request
         data = request.get_json(force=True)
-        text = data.get('text', '')
+
+        text       = data.get("text", "")
+        model_path = data.get("model_path", DEFAULT_MODEL)
+
         if not text:
-            return jsonify({'error': 'No text provided'}), 400
+            return jsonify({"error": "No text provided"}), 400
 
-        # Vectorize input text
+        bundle     = load_bundle(model_path)
+        model      = bundle["model"]
+        vectorizer = bundle["vectorizer"]
+
         X = vectorizer.transform([text])
+        pred_num = int(model.predict(X)[0])
+        probs    = model.predict_proba(X)[0]
 
-        # Predict class
-        pred_class_num = int(model.predict(X)[0])
-        pred_class_name = label_mapping.get(pred_class_num, "Unknown")
-        
-        # Get probabilities for each class
-        probabilities = model.predict_proba(X)[0]
-        
-        # Create probability dictionary
-        prob_per_class = {
-            f"{label_mapping.get(i, 'Unknown')}": f"{prob*100:.2f}%"
-            for i, prob in enumerate(probabilities)
-        }
-        
-        # Prepare response
-        response = {
-            'Prediction': pred_class_name,
-            'Label': pred_class_num,
-            'Probabilities':prob_per_class
-        }
-        
-        return jsonify(response)
+        return jsonify({
+            "ModelPath":   model_path,
+            "Prediction":  label_mapping.get(pred_num, "Unknown"),
+            "Label":       pred_num,
+            "Probabilities": {
+                label_mapping.get(i, "Unknown"): f"{p*100:.2f}%"
+                for i, p in enumerate(probs)
+            }
+        })
 
     except Exception as e:
-        # In case of error return error message
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
