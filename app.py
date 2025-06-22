@@ -2,6 +2,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pickle, os
+from sklearn.pipeline import Pipeline
 
 app = Flask(__name__)
 CORS(app)
@@ -12,7 +13,7 @@ DEFAULT_MODEL = "80-20/best_nb_tfidf_model_80_20.pkl"   # fallback
 
 _CACHE = {}
 
-def load_bundle(path):
+def load_pipe(path):
     if path not in _CACHE:
         if not os.path.exists(path):
             raise FileNotFoundError(f"Model file '{path}' not found")
@@ -32,13 +33,11 @@ def predict():
         if not text:
             return jsonify({"error": "No text provided"}), 400
 
-        bundle     = load_bundle(model_path)
-        model      = bundle["model"]
-        vectorizer = bundle["vectorizer"]
+        pipe  = load_pipe(model_path)
+        preds = pipe.predict([text])
+        probs = pipe.predict_proba([text])[0]
 
-        X = vectorizer.transform([text])
-        pred_num = int(model.predict(X)[0])
-        probs    = model.predict_proba(X)[0]
+        pred_num  = int(preds[0])
 
         return jsonify({
             "ModelPath":   model_path,
