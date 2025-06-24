@@ -7,7 +7,7 @@ from sklearn.pipeline import Pipeline
 app = Flask(__name__)
 CORS(app)
 
-label_mapping = {0: "Normal", 1: "Fraud / Penipuan", 2: "Promo"}
+label_mapping = {0: "Normal", 1: "Fraud", 2: "Promo"}
 
 DEFAULT_MODEL = "80-20/best_nb_tfidf_model_80_20.pkl"   # fallback
 
