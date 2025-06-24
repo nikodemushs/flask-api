@@ -1,3 +1,4 @@
+# app.py  ← only the parts that changed / were added
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pickle, os
